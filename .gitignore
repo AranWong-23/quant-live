@@ -19,3 +19,4 @@ live/state_history.csv
 __pycache__/
 *.pyc
 *.pyo
+.env
