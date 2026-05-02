@@ -9,3 +9,13 @@ live/state_history.csv
 .DS_Store
 *.backup*
 *_backup_*
+
+# 备份、副本、临时文件
+*_backup*
+*_backup_*
+*副本*
+*.bak
+*.tmp
+__pycache__/
+*.pyc
+*.pyo
