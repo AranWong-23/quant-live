@@ -24,7 +24,7 @@ jobs:
 
       - name: 创建必要目录
         run: |
-          mkdir -p backtestdata
+          mkdir -p backtestdata/hfq
           mkdir -p live/logs
 
       - name: 运行策略主控
