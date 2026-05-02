@@ -1,0 +1,11 @@
+backtestdata/
+live/logs/
+live/last_state.json
+live/state_history.csv
+*.csv
+!live/etf_pool.csv
+
+# 系统生成的无用文件
+.DS_Store
+*.backup*
+*_backup_*
