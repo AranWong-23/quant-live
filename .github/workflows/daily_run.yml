@@ -8,6 +8,7 @@ on:
 jobs:
   daily:
     runs-on: ubuntu-latest
+    timeout-minutes: 25       # ★ 整个工作流最长25分钟，防止无限运行
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +29,7 @@ jobs:
           mkdir -p live/logs
 
       - name: 运行策略主控
+        timeout-minutes: 20   # ★ 策略脚本最长跑20分钟
         env:
           TS_TOKEN: ${{ secrets.TS_TOKEN }}
           DS_API_KEY: ${{ secrets.DS_API_KEY }}
@@ -35,10 +37,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           cd live
-          python daily_update.py
+          python daily_update.py || echo "数据更新完成（或部分失败）"
           python run_daily.py --account Aran
 
       - name: 提交更新的数据文件
+        if: success() || failure()   # ★ 即使策略脚本失败，也尝试提交已有数据
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
