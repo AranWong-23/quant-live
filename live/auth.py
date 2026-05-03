@@ -5,7 +5,7 @@ import bcrypt
 import os
 import streamlit as st
 
-AUTH_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "users.yaml")
+AUTH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.yaml")
 
 def load_users():
     if os.path.exists(AUTH_FILE):
