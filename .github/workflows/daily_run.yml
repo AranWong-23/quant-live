@@ -2,8 +2,11 @@ name: 每日策略运行
 
 on:
   schedule:
-    - cron: '30 0 * * 1-5'   # UTC 0:30 = 北京时间 8:30
+    - cron: '30 0 * * 1-5'    # UTC 0:30 = 北京时间 8:30
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   daily:
