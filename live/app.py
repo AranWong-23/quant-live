@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # app.py - AlphaEngine 2026 现代金融级专业版 (V3色彩标签 + 紧凑数据表 + 动态风控可视化)
 import streamlit as st
-
+import subprocess
 import json, os, datetime
 import pandas as pd
 import auth
@@ -130,6 +130,23 @@ DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "backtestdata")
 POOL_FILE = os.path.join(BASE_DIR, "etf_pool.csv")
 REPORT_DIR = os.path.join(BASE_DIR, "logs")
 
+def git_sync(file_path=".", message="update"):
+    """将指定文件或当前目录变更推送到 GitHub"""
+    try:
+        subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
+        subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
+        subprocess.run(["git", "add", file_path], check=True, capture_output=True)
+        # 仅当有变更时才提交
+        result = subprocess.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
+        if result.returncode != 0:
+            subprocess.run(["git", "commit", "-m", message], check=True, capture_output=True)
+            subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "push"], check=True, capture_output=True)
+            return True
+    except Exception:
+        pass
+    return False
+
 def load_pool():
     if os.path.exists(POOL_FILE):
         return dict(zip(pd.read_csv(POOL_FILE, encoding='utf-8')['code'].str.strip(), pd.read_csv(POOL_FILE, encoding='utf-8')['name'].str.strip()))
@@ -144,6 +161,7 @@ def load_holdings(username):
 def save_holdings(username, data):
     file = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
     with open(file, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    git_sync(file, f"更新持仓 {username}")
     try:
         import subprocess
         subprocess.run(["git", "add", file], check=True, capture_output=True)
