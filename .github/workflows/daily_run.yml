@@ -2,7 +2,7 @@ name: 每日策略运行（自动发现所有账户）
 
 on:
   schedule:
-    - cron: '30 0 * * 1-5'   # UTC 0:30 = 北京时间 8:30
+    - cron: '30 0 * * 1-5'
   workflow_dispatch:
 
 permissions:
@@ -21,18 +21,17 @@ jobs:
       - name: 自动发现所有账户
         id: list
         run: |
-          cd live
-          # 收集所有 holdings_*.json 文件，提取账户名
-          accounts="[]"
-          if ls holdings_*.json 1> /dev/null 2>&1; then
-            accounts=$(ls holdings_*.json | sed 's/holdings_//;s/\.json//' | jq -R . | jq -s .)
-          fi
-          # 如果没有任何账户文件，使用默认 main
-          if [ "$accounts" = "[]" ]; then
-            accounts='["main"]'
-          fi
-          echo "accounts=$accounts" >> $GITHUB_OUTPUT
-          echo "发现账户: $accounts"
+          import os, json, glob
+          os.chdir("live")
+          files = glob.glob("holdings_*.json")
+          accounts = sorted([f.replace("holdings_", "").replace(".json", "") for f in files])
+          if not accounts:
+              accounts = ["main"]
+          output = json.dumps(accounts)
+          print(f"发现账户: {output}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"accounts={output}\n")
+        shell: python
 
   daily:
     needs: discover
