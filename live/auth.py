@@ -12,6 +12,23 @@ import streamlit as st
 AUTH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.yaml")
 HOLDINGS_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def git_sync(file_path=".", message="update"):
+    """将指定文件或当前目录变更推送到 GitHub"""
+    try:
+        subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
+        subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
+        subprocess.run(["git", "add", file_path], check=True, capture_output=True)
+        # 仅当有变更时才提交
+        result = subprocess.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
+        if result.returncode != 0:
+            subprocess.run(["git", "commit", "-m", message], check=True, capture_output=True)
+            subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "push"], check=True, capture_output=True)
+            return True
+    except Exception:
+        pass
+    return False
+
 def load_users():
     if os.path.exists(AUTH_FILE):
         with open(AUTH_FILE, 'r', encoding='utf-8') as f:
@@ -110,11 +127,8 @@ def register():
             # 3. 将用户文件和持仓文件提交到 GitHub（保证持久化）
             try:
                 import subprocess
-                subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
-                subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
-                subprocess.run(["git", "add", AUTH_FILE, holdings_file], check=True, capture_output=True)
-                subprocess.run(["git", "commit", "-m", f"注册新用户 {new_user}"], check=True, capture_output=True)
-                subprocess.run(["git", "push"], check=True, capture_output=True)
+                git_sync(AUTH_FILE, f"注册新用户 {new_user}")
+                git_sync(holdings_file, f"创建持仓文件 {new_user}")
             except Exception as e:
                 st.warning(f"用户数据已创建，但同步到云端仓库失败：{e}")
 
