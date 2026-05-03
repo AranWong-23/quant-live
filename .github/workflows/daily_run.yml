@@ -8,10 +8,10 @@ on:
 jobs:
   daily:
     runs-on: ubuntu-latest
+    timeout-minutes: 25       # ★ 整个工作流最长25分钟，防止无限运行
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_TOKEN }}
           fetch-depth: 0
 
       - name: 设置 Python
@@ -23,31 +23,28 @@ jobs:
         run: |
           pip install tushare pandas numpy openai requests bcrypt PyYAML
 
-      - name: 初始化数据（仅首次）
-        env:
-          TS_TOKEN: ${{ secrets.TS_TOKEN }}
+      - name: 创建必要目录
         run: |
-          cd live
-          if [ ! -f "../backtestdata/index_000300.SH.csv" ]; then
-            echo "首次运行，正在下载全量历史数据，约需15分钟..."
-            python daily_update.py
-          else
-            echo "数据已存在，跳过初始化"
-          fi
+          mkdir -p backtestdata/hfq
+          mkdir -p live/logs
 
-      - name: 运行策略并推送
+      - name: 运行策略主控
+        timeout-minutes: 20   # ★ 策略脚本最长跑20分钟
         env:
           TS_TOKEN: ${{ secrets.TS_TOKEN }}
           DS_API_KEY: ${{ secrets.DS_API_KEY }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           cd live
+          python daily_update.py || echo "数据更新完成（或部分失败）"
           python run_daily.py --account Aran
 
-      - name: 提交数据更新
+      - name: 提交更新的数据文件
+        if: success() || failure()   # ★ 即使策略脚本失败，也尝试提交已有数据
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add backtestdata/ live/logs/ live/last_state.json live/state_history.csv 2>/dev/null || true
           git diff --cached --quiet || git commit -m "自动更新数据 $(date +'%Y%m%d')"
-          git push
+          git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
