@@ -206,16 +206,31 @@ def save_holdings(username, data):
 
         
 def load_dashboard_data(username):
-    report_dir = os.path.join(REPORT_DIR, username)
-    if not os.path.exists(report_dir):
+    token = st.secrets.get("GH_TOKEN", "")
+    if not token:
         return None
-    files = [f for f in os.listdir(report_dir) if f.startswith("dashboard_") and f.endswith(".json")]
-    if not files:
+    import base64, requests
+    # 1. 通过 GitHub API 获取 logs/{username} 目录下的文件列表
+    url = f"https://api.github.com/repos/AranWong-23/quant-live/contents/live/logs/{username}"
+    headers = {"Authorization": f"token {token}"}
+    resp = requests.get(url, headers=headers)
+    if resp.status_code != 200:
         return None
-    files.sort(reverse=True)
-    latest_file = files[0]
-    with open(os.path.join(report_dir, latest_file), 'r', encoding='utf-8') as f:
-        return json.load(f)
+    files = resp.json()
+    # 2. 筛选 dashboard_*.json 文件，按日期排序，取最新的
+    dashboard_files = sorted(
+        [f for f in files if f["name"].startswith("dashboard_") and f["name"].endswith(".json")],
+        key=lambda x: x["name"], reverse=True
+    )
+    if not dashboard_files:
+        return None
+    # 3. 读取最新文件的内容
+    content_url = dashboard_files[0]["git_url"]
+    resp2 = requests.get(content_url, headers=headers)
+    if resp2.status_code == 200:
+        content_bytes = base64.b64decode(resp2.json()["content"])
+        return json.loads(content_bytes.decode())
+    return None
 
 def format_date_str(date_str):
     if date_str and len(date_str) == 8 and date_str.isdigit():
