@@ -22,9 +22,14 @@ jobs:
         id: list
         run: |
           cd live
-          accounts=$(ls holdings_*.json 2>/dev/null | sed 's/holdings_//;s/\.json//' | tr '\n' ' ')
-          if [ -z "$accounts" ]; then
-            accounts="main"
+          # 收集所有 holdings_*.json 文件，提取账户名
+          accounts="[]"
+          if ls holdings_*.json 1> /dev/null 2>&1; then
+            accounts=$(ls holdings_*.json | sed 's/holdings_//;s/\.json//' | jq -R . | jq -s .)
+          fi
+          # 如果没有任何账户文件，使用默认 main
+          if [ "$accounts" = "[]" ]; then
+            accounts='["main"]'
           fi
           echo "accounts=$accounts" >> $GITHUB_OUTPUT
           echo "发现账户: $accounts"
