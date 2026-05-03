@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 # app.py - AlphaEngine 2026 现代金融级专业版 (V3色彩标签 + 紧凑数据表 + 动态风控可视化)
+# 自动同步 GitHub 数据（Streamlit Cloud 专用）
+import subprocess
+try:
+    subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True, capture_output=True)
+    subprocess.run(["git", "pull", "origin", "main"], check=True, capture_output=True)
+    print("✅ 已拉取最新数据")
+except Exception as e:
+    print(f"⚠️ git pull 失败（可忽略）: {e}")
+
 import streamlit as st
 import subprocess
 import json, os, datetime
