@@ -73,7 +73,7 @@ jobs:
           cd live
           python daily_update.py || echo "数据更新完成（或部分失败）"
           python run_daily.py --account ${{ matrix.account }}
-
+          
       - name: 提交更新的数据文件
         if: success() || failure()
         run: |
@@ -81,4 +81,6 @@ jobs:
           git config user.email "actions@github.com"
           git add backtestdata/ live/logs/ live/last_state.json live/state_history.csv live/holdings_*.json live/users.yaml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "自动更新数据 $(date +'%Y%m%d') [${{ matrix.account }}]"
+          # 拉取远程最新代码并变基，避免 non-fast-forward 冲突
+          git pull --rebase origin main
           git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
