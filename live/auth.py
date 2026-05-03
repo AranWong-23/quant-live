@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-# auth.py - 用户认证（登录、注册、注销）最终版
+# auth.py - 支持 GitHub API 持久化的用户管理模块
 import yaml
 import bcrypt
 import os
+import json
+import base64
+import requests
 import streamlit as st
 
+# ==================== 路径 ====================
 AUTH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.yaml")
+HOLDINGS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_users():
     if os.path.exists(AUTH_FILE):
@@ -15,7 +20,7 @@ def load_users():
 
 def save_users(users):
     with open(AUTH_FILE, 'w', encoding='utf-8') as f:
-        yaml.dump(users, f)
+        yaml.dump(users, f, allow_unicode=True)
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -23,20 +28,36 @@ def hash_password(password):
 def check_password(password, hashed):
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
+def commit_file_to_github(token, repo, path, content, message):
+    """通过 GitHub API 提交单个文件"""
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+    # 获取当前文件的 sha（如果已存在）
+    resp = requests.get(url, headers=headers)
+    sha = resp.json().get("sha") if resp.status_code == 200 else None
+    data = {
+        "message": message,
+        "content": base64.b64encode(content.encode()).decode(),
+        "branch": "main"
+    }
+    if sha:
+        data["sha"] = sha
+    resp = requests.put(url, json=data, headers=headers)
+    return resp.status_code in (200, 201)
+
 def login():
     users = load_users()
-    st.markdown("<h2 style='text-align: center; color: #2E86C1;'>🔐 登录</h2>", unsafe_allow_html=True)
-    with st.form("login_form"):
-        username = st.text_input("用户名", key="login_username")
-        password = st.text_input("密码", type="password", key="login_password")
-        if st.form_submit_button("🚀 登录"):
-            if username in users and check_password(password, users[username]["password"]):
-                st.session_state["logged_in"] = True
-                st.session_state["username"] = username
-                st.success("登录成功！正在跳转...")
-                st.rerun()
-            else:
-                st.error("用户名或密码错误")
+    st.title("🔐 登录")
+    username = st.text_input("用户名", key="login_username")
+    password = st.text_input("密码", type="password", key="login_password")
+    if st.button("登录", key="login_btn"):
+        if username in users and check_password(password, users[username]["password"]):
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.success("登录成功！正在跳转...")
+            st.rerun()
+        else:
+            st.error("用户名或密码错误")
 
 def register():
     users = load_users()
@@ -57,15 +78,14 @@ def register():
         elif new_pass != confirm_pass:
             st.error("两次密码不一致")
         else:
+            # 更新用户列表
             users[new_user] = {
                 "password": hash_password(new_pass),
                 "initial_cash": initial_cash
             }
             save_users(users)
 
-            # ★ 创建新用户的持仓文件
-            import os
-            holdings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"holdings_{new_user}.json")
+            # 创建持仓文件内容
             default_holdings = {
                 "cash": initial_cash,
                 "holdings": {},
@@ -74,24 +94,26 @@ def register():
                 "cooling_type": {},
                 "frozen_until": None
             }
-            with open(holdings_file, 'w', encoding='utf-8') as f:
-                json.dump(default_holdings, f, indent=2, ensure_ascii=False)
+            holdings_json = json.dumps(default_holdings, indent=2, ensure_ascii=False)
 
-            st.success("注册成功！请先登录，然后系统会自动创建账户。")
+            # 提交到 GitHub
+            token = st.secrets.get("GH_TOKEN", "")
+            if not token:
+                st.error("GitHub Token 未配置，无法保存用户数据。请检查 Streamlit Cloud Secrets。")
+                return
 
+            users_yaml = yaml.dump(users, allow_unicode=True)
             try:
-                import subprocess
-                # 配置 git 用户（以防云端环境未配置）
-                subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
-                subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
-                # 添加用户文件和新持仓文件
-                subprocess.run(["git", "add", AUTH_FILE, holdings_file], check=True, capture_output=True)
-                subprocess.run(["git", "commit", "-m", f"注册新用户 {new_user}"], check=True, capture_output=True)
-                subprocess.run(["git", "push"], check=True, capture_output=True)
+                commit_file_to_github(token, "AranWong-23/quant-live", "live/users.yaml", users_yaml, f"注册新用户 {new_user}")
+                commit_file_to_github(token, "AranWong-23/quant-live", f"live/holdings_{new_user}.json", holdings_json, f"创建持仓文件 {new_user}")
+                st.success("注册成功！请前往登录页面登录。")
             except Exception as e:
                 st.warning(f"用户已创建，但同步到云端失败：{e}")
-        
-            # 注意：这里不直接登录，而是让用户去登录页面
+
+def logout():
+    st.session_state["logged_in"] = False
+    st.session_state["username"] = None
+    st.rerun()
 
 def logout():
     st.session_state["logged_in"] = False
@@ -99,19 +121,5 @@ def logout():
     st.rerun()
 
 def delete_account(username):
-    users = load_users()
-    if username in users:
-        del users[username]
-        save_users(users)
-        # 删除持仓文件
-        holdings_file = "/Users/aranwong/Documents/quant app/量化策略/live/holdings_{}.json".format(username)
-        if os.path.exists(holdings_file):
-            os.remove(holdings_file)
-        if username == "main":
-            main_file = "/Users/aranwong/Documents/quant app/量化策略/live/current_holdings.json"
-            if os.path.exists(main_file):
-                os.remove(main_file)
-        st.session_state["logged_in"] = False
-        st.session_state["username"] = None
-        st.success("账户已注销")
-        st.rerun()
+    # 此功能在云端暂不实现，如需删除请手动修改 users.yaml
+    pass
