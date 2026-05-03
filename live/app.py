@@ -144,6 +144,13 @@ def load_holdings(username):
 def save_holdings(username, data):
     file = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
     with open(file, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    try:
+        import subprocess
+        subprocess.run(["git", "add", file], check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", f"更新持仓 {username}"], check=True, capture_output=True)
+        subprocess.run(["git", "push"], check=True, capture_output=True)
+    except Exception as e:
+        st.warning(f"持仓已保存，但同步到云端失败：{e}")
 
 def load_dashboard_data(username):
     today_str = datetime.datetime.now().strftime('%Y-%m-%d')
