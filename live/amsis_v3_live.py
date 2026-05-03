@@ -21,7 +21,7 @@ DS_API_KEY = "sk-02523eca6446488ba739f9f76ce87615"
 DS_BASE_URL = "https://api.deepseek.com"
 ds_client = OpenAI(api_key=DS_API_KEY, base_url=DS_BASE_URL) if DS_API_KEY else None
 
-CACHE_DIR = "/Users/aranwong/Documents/quant app/量化策略/backtestdata"
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backtestdata")
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_state.json")
 
 # ==================== 最优参数（固化） ====================
