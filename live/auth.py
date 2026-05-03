@@ -63,6 +63,13 @@ def register():
             }
             save_users(users)
             st.success("注册成功！请先登录，然后系统会自动创建账户。")
+            try:
+                import subprocess
+                subprocess.run(["git", "add", AUTH_FILE], check=True, capture_output=True)
+                subprocess.run(["git", "commit", "-m", f"注册新用户 {new_user}"], check=True, capture_output=True)
+                subprocess.run(["git", "push"], check=True, capture_output=True)
+            except Exception as e:
+                st.warning(f"用户已创建，但同步到云端失败：{e}")
             # 注意：这里不直接登录，而是让用户去登录页面
 
 def logout():
