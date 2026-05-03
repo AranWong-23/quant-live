@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # app.py - AlphaEngine 2026 现代金融级专业版 (V3色彩标签 + 紧凑数据表 + 动态风控可视化)
 import streamlit as st
-import json, os, subprocess, sys, datetime
+
+import json, os, datetime
 import pandas as pd
 import auth
 
@@ -124,8 +125,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== 2. 数据读取逻辑 ====================
-BASE_DIR = "/Users/aranwong/Documents/quant app/量化策略/live"
-DATA_DIR = "/Users/aranwong/Documents/quant app/量化策略/backtestdata"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "backtestdata")
 POOL_FILE = os.path.join(BASE_DIR, "etf_pool.csv")
 REPORT_DIR = os.path.join(BASE_DIR, "logs")
 
@@ -241,11 +242,8 @@ profit_color = "var(--bull-red)" if total_profit > 0 else ("var(--bear-green)" i
 profit_sign = "+" if total_profit > 0 else ""
 
 if not dash_data:
-    st.warning("今日尚未生成决策数据。")
-    if st.button("启动量化计算引擎", icon=":material/rocket_launch:", type="primary"):
-        with st.spinner("系统运算中..."):
-            subprocess.run([sys.executable, os.path.join(BASE_DIR, "run_daily.py"), "--account", username], cwd=BASE_DIR)
-        st.rerun()
+    st.warning("今日决策数据尚未生成，请等待 GitHub Actions 自动运行（每个交易日 8:30 后生成）。")
+    st.info("💡 如需立即生成，请在 GitHub 仓库的 Actions 页面手动触发「每日策略运行」。")
     st.stop()
 
 # ★ 提取 V3 状态并应用专属颜色方案 ★
@@ -280,11 +278,9 @@ if "决策大屏" in page:
         """, unsafe_allow_html=True)
     with head_col2:
         st.write("") 
-        if st.button("手动同步最新行情", icon=":material/sync:", use_container_width=True):
-            with st.spinner("请求最新行情中..."): 
-                subprocess.run([sys.executable, os.path.join(BASE_DIR, "run_daily.py"), "--account", username], cwd=BASE_DIR)
-            st.rerun()
-    
+        
+        st.button("🔄 数据由 GitHub Actions 定时更新", disabled=True, use_container_width=True, help="每日 8:30 自动运行，也可手动触发")
+        
     st.write("") 
 
     # 1. 顶部数据卡片
