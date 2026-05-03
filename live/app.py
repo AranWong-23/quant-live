@@ -5,6 +5,8 @@ import subprocess
 import json, os, datetime
 import pandas as pd
 import auth
+import base64
+import requests
 
 # ==================== 1. 全局配置与现代专业 UI 注入 ====================
 st.set_page_config(page_title="AlphaEngine Pro", layout="wide", initial_sidebar_state="expanded")
@@ -153,22 +155,45 @@ def load_pool():
     return {}
 
 def load_holdings(username):
-    file = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
-    if os.path.exists(file):
-        with open(file, encoding='utf-8') as f: return json.load(f)
-    return {"cash": 100000.0, "holdings": {}, "peak_nav": 100000.0}
+    filepath = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
+    # 优先读取本地文件（本地运行）
+    if os.path.exists(filepath):
+        with open(filepath, encoding='utf-8') as f:
+            return json.load(f)
+    # 云端尝试通过 API 读取
+    token = st.secrets.get("GH_TOKEN", "")
+    if token:
+        url = f"https://api.github.com/repos/AranWong-23/quant-live/contents/live/holdings_{username}.json"
+        resp = requests.get(url, headers={"Authorization": f"token {token}"})
+        if resp.status_code == 200:
+            content = resp.json()["content"]
+            return json.loads(base64.b64decode(content).decode())
+    # 都读不到则返回默认
+    return {"cash": 100000.0, "holdings": {}, "peak_nav": 100000.0, "cooling": {}, "cooling_type": {}, "frozen_until": None}
 
 def save_holdings(username, data):
-    file = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
-    with open(file, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
-    git_sync(file, f"更新持仓 {username}")
-    try:
-        import subprocess
-        subprocess.run(["git", "add", file], check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", f"更新持仓 {username}"], check=True, capture_output=True)
-        subprocess.run(["git", "push"], check=True, capture_output=True)
-    except Exception as e:
-        st.warning(f"持仓已保存，但同步到云端失败：{e}")
+    # 本地写入（本地运行用）
+    filepath = os.path.join(BASE_DIR, f"holdings_{username}.json") if username != "main" else os.path.join(BASE_DIR, "current_holdings.json")
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # 云端通过 API 提交
+    token = st.secrets.get("GH_TOKEN", "")
+    if token:
+        url = f"https://api.github.com/repos/AranWong-23/quant-live/contents/live/holdings_{username}.json"
+        headers = {"Authorization": f"token {token}"}
+        # 获取当前文件的 sha
+        resp = requests.get(url, headers=headers)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+        body = {
+            "message": f"更新持仓 {username}",
+            "content": base64.b64encode(json.dumps(data, indent=2, ensure_ascii=False).encode()).decode(),
+            "branch": "main"
+        }
+        if sha:
+            body["sha"] = sha
+        requests.put(url, json=body, headers=headers)
+
         
 def load_dashboard_data(username):
     report_dir = os.path.join(REPORT_DIR, username)
