@@ -152,13 +152,20 @@ def save_holdings(username, data):
     except Exception as e:
         st.warning(f"持仓已保存，但同步到云端失败：{e}")
 
+
 def load_dashboard_data(username):
-    today_str = datetime.datetime.now().strftime('%Y-%m-%d')
-    json_file = os.path.join(REPORT_DIR, username, f"dashboard_{today_str}.json")
-    if os.path.exists(json_file):
-        with open(json_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return None
+    """读取当前账户最新的 dashboard JSON 文件"""
+    report_dir = os.path.join(REPORT_DIR, username)
+    if not os.path.exists(report_dir):
+        return None
+    # 列出所有 dashboard_*.json 文件，按日期排序，取最新的
+    files = [f for f in os.listdir(report_dir) if f.startswith("dashboard_") and f.endswith(".json")]
+    if not files:
+        return None
+    files.sort(reverse=True)  # 最新的在最前面
+    latest_file = files[0]
+    with open(os.path.join(report_dir, latest_file), 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 def format_date_str(date_str):
     if date_str and len(date_str) == 8 and date_str.isdigit():
