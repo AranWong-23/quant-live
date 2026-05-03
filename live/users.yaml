@@ -3,3 +3,6 @@ Aran:
 te'st:
   initial_cash: 100000
   password: $2b$12$mDx1Z7b2uLYh/iCP2MpOvejZu.2Dx8Y1IbadQzMdV/.6AkjRLq30W
+test:
+  initial_cash: 100000
+  password: $2b$12$jWuUTf3Fe/l0WL/2cTvNeOyI3hGniUbT./3YEDPHp5y/g6/LXKvi6
