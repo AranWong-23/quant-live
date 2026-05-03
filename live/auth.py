@@ -59,17 +59,38 @@ def register():
         else:
             users[new_user] = {
                 "password": hash_password(new_pass),
-                "initial_cash": initial_cash      # 保存本金
+                "initial_cash": initial_cash
             }
             save_users(users)
+
+            # ★ 创建新用户的持仓文件
+            import os
+            holdings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"holdings_{new_user}.json")
+            default_holdings = {
+                "cash": initial_cash,
+                "holdings": {},
+                "peak_nav": initial_cash,
+                "cooling": {},
+                "cooling_type": {},
+                "frozen_until": None
+            }
+            with open(holdings_file, 'w', encoding='utf-8') as f:
+                json.dump(default_holdings, f, indent=2, ensure_ascii=False)
+
             st.success("注册成功！请先登录，然后系统会自动创建账户。")
+
             try:
                 import subprocess
-                subprocess.run(["git", "add", AUTH_FILE], check=True, capture_output=True)
+                # 配置 git 用户（以防云端环境未配置）
+                subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
+                subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
+                # 添加用户文件和新持仓文件
+                subprocess.run(["git", "add", AUTH_FILE, holdings_file], check=True, capture_output=True)
                 subprocess.run(["git", "commit", "-m", f"注册新用户 {new_user}"], check=True, capture_output=True)
                 subprocess.run(["git", "push"], check=True, capture_output=True)
             except Exception as e:
                 st.warning(f"用户已创建，但同步到云端失败：{e}")
+        
             # 注意：这里不直接登录，而是让用户去登录页面
 
 def logout():
