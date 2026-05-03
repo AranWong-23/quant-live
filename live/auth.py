@@ -77,38 +77,46 @@ def register():
             st.error("用户名已存在")
         elif new_pass != confirm_pass:
             st.error("两次密码不一致")
+        
         else:
-            # 更新用户列表
             users[new_user] = {
                 "password": hash_password(new_pass),
                 "initial_cash": initial_cash
             }
+            # 1. 更新用户文件
             save_users(users)
 
-            # 创建持仓文件内容
-            default_holdings = {
-                "cash": initial_cash,
-                "holdings": {},
-                "peak_nav": initial_cash,
-                "cooling": {},
-                "cooling_type": {},
-                "frozen_until": None
-            }
-            holdings_json = json.dumps(default_holdings, indent=2, ensure_ascii=False)
-
-            # 提交到 GitHub
-            token = st.secrets.get("GH_TOKEN", "")
-            if not token:
-                st.error("GitHub Token 未配置，无法保存用户数据。请检查 Streamlit Cloud Secrets。")
+            # 2. 立即在本地创建持仓文件
+            import os, json
+            import traceback
+            try:
+                holdings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"holdings_{new_user}.json")
+                default_holdings = {
+                    "cash": initial_cash,
+                    "holdings": {},
+                    "peak_nav": initial_cash,
+                    "cooling": {},
+                    "cooling_type": {},
+                    "frozen_until": None
+                }
+                with open(holdings_file, 'w', encoding='utf-8') as f:
+                    json.dump(default_holdings, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                st.error(f"本地创建持仓文件失败，请检查权限！错误：{e}")
                 return
 
-            users_yaml = yaml.dump(users, allow_unicode=True)
+            st.success("注册成功！请先登录，然后系统会自动创建账户。")
+
+            # 3. 将用户文件和持仓文件提交到 GitHub（保证持久化）
             try:
-                commit_file_to_github(token, "AranWong-23/quant-live", "live/users.yaml", users_yaml, f"注册新用户 {new_user}")
-                commit_file_to_github(token, "AranWong-23/quant-live", f"live/holdings_{new_user}.json", holdings_json, f"创建持仓文件 {new_user}")
-                st.success("注册成功！请前往登录页面登录。")
+                import subprocess
+                subprocess.run(["git", "config", "user.name", "Streamlit Cloud"], check=True)
+                subprocess.run(["git", "config", "user.email", "streamlit@cloud.com"], check=True)
+                subprocess.run(["git", "add", AUTH_FILE, holdings_file], check=True, capture_output=True)
+                subprocess.run(["git", "commit", "-m", f"注册新用户 {new_user}"], check=True, capture_output=True)
+                subprocess.run(["git", "push"], check=True, capture_output=True)
             except Exception as e:
-                st.warning(f"用户已创建，但同步到云端失败：{e}")
+                st.warning(f"用户数据已创建，但同步到云端仓库失败：{e}")
 
 def logout():
     st.session_state["logged_in"] = False
