@@ -21,16 +21,17 @@ jobs:
       - name: 自动发现所有账户
         id: list
         run: |
-          import os, json, glob
+          import json, glob, os
           os.chdir("live")
           files = glob.glob("holdings_*.json")
           accounts = sorted([f.replace("holdings_", "").replace(".json", "") for f in files])
           if not accounts:
               accounts = ["main"]
-          output = json.dumps(accounts)
-          print(f"发现账户: {output}")
+          # 输出严格 JSON，不带空格和换行
+          output = json.dumps(accounts, separators=(',', ':'))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"accounts={output}\n")
+          print(f"发现账户: {output}")
         shell: python
 
   daily:
