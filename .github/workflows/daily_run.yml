@@ -1,17 +1,43 @@
-name: 每日策略运行
+name: 每日策略运行（自动发现所有账户）
 
 on:
   schedule:
-    - cron: '30 0 * * 1-5'    # UTC 0:30 = 北京时间 8:30
+    - cron: '30 0 * * 1-5'   # UTC 0:30 = 北京时间 8:30
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  daily:
+  discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 25       # ★ 整个工作流最长25分钟，防止无限运行
+    outputs:
+      accounts: ${{ steps.list.outputs.accounts }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 自动发现所有账户
+        id: list
+        run: |
+          cd live
+          accounts=$(ls holdings_*.json 2>/dev/null | sed 's/holdings_//;s/\.json//' | tr '\n' ' ')
+          if [ -z "$accounts" ]; then
+            accounts="main"
+          fi
+          echo "accounts=$accounts" >> $GITHUB_OUTPUT
+          echo "发现账户: $accounts"
+
+  daily:
+    needs: discover
+    strategy:
+      matrix:
+        account: ${{ fromJson(needs.discover.outputs.accounts) }}
+      fail-fast: false
+      max-parallel: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,8 +57,8 @@ jobs:
           mkdir -p backtestdata/hfq
           mkdir -p live/logs
 
-      - name: 运行策略主控
-        timeout-minutes: 20   # ★ 策略脚本最长跑20分钟
+      - name: 运行策略主控（${{ matrix.account }}）
+        timeout-minutes: 20
         env:
           TS_TOKEN: ${{ secrets.TS_TOKEN }}
           DS_API_KEY: ${{ secrets.DS_API_KEY }}
@@ -41,13 +67,13 @@ jobs:
         run: |
           cd live
           python daily_update.py || echo "数据更新完成（或部分失败）"
-          python run_daily.py --account Aran
+          python run_daily.py --account ${{ matrix.account }}
 
       - name: 提交更新的数据文件
-        if: success() || failure()   # ★ 即使策略脚本失败，也尝试提交已有数据
+        if: success() || failure()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add backtestdata/ live/logs/ live/last_state.json live/state_history.csv 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "自动更新数据 $(date +'%Y%m%d')"
+          git add backtestdata/ live/logs/ live/last_state.json live/state_history.csv live/holdings_*.json live/users.yaml 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "自动更新数据 $(date +'%Y%m%d') [${{ matrix.account }}]"
           git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
